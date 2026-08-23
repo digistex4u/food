@@ -1,0 +1,27 @@
+{
+  "name": "bulk-kitchen",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "tsx scripts/validate.ts && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "validate": "tsx scripts/validate.ts"
+  },
+  "dependencies": {
+    "next": "15.5.23",
+    "pg": "8.13.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/pg": "8.11.10",
+    "@types/react": "19.0.2",
+    "@types/react-dom": "19.0.2",
+    "tsx": "4.21.0",
+    "typescript": "5.7.2"
+  }
+}
