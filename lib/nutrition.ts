@@ -1064,3 +1064,46 @@ export function readTrend(
       ? `Weight is holding within ${Math.abs(rate * 1000).toFixed(0)} g a week. That is what maintenance looks like.`
       : `Weight moved <strong>${(rate * 1000).toFixed(0)} g</strong> this week while you are aiming to maintain. Adjust by 150 kcal in the opposite direction.` };
 }
+
+/* ------------------------------------------------------------ cooking videos */
+
+/**
+ * A YouTube search URL for a dish, in Hindi where we have the name.
+ *
+ * Deliberately a *search*, not a hardcoded video id. Picking specific videos
+ * would mean shipping links that rot, get taken down, or turn out to be the
+ * wrong dish entirely — and nobody would notice until the person cooking
+ * followed one. A search always resolves to something current, and anyone can
+ * pin a specific video per recipe once they have watched it.
+ */
+export function youtubeSearchUrl(nameEn: string, nameHi?: string): string {
+  const query = nameHi ? `${nameHi} रेसिपी` : `${nameEn} recipe`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
+
+/** Accepts the URL forms people actually paste, and normalises to a watch link. */
+export function parseYouTubeUrl(raw: string): string | null {
+  const s = raw.trim();
+  if (!s) return null;
+  let u: URL;
+  try {
+    u = new URL(s.startsWith("http") ? s : `https://${s}`);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\./, "").replace(/^m\./, "");
+  let id = "";
+  if (host === "youtu.be") id = u.pathname.slice(1);
+  else if (host === "youtube.com" || host === "music.youtube.com") {
+    if (u.pathname === "/watch") id = u.searchParams.get("v") ?? "";
+    else if (u.pathname.startsWith("/shorts/")) id = u.pathname.split("/")[2] ?? "";
+    else if (u.pathname.startsWith("/embed/")) id = u.pathname.split("/")[2] ?? "";
+    else if (u.pathname === "/results") return u.toString(); // a search is fine too
+    else if (u.pathname.startsWith("/playlist")) return u.toString();
+  } else {
+    return null;
+  }
+  if (!/^[\w-]{11}$/.test(id)) return null;
+  const t = u.searchParams.get("t");
+  return `https://www.youtube.com/watch?v=${id}${t ? `&t=${encodeURIComponent(t)}` : ""}`;
+}

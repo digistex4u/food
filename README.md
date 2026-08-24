@@ -17,7 +17,7 @@ Built with Next.js (App Router) and Postgres. Deploys to Vercel.
 | **Daily tracker** | Log food by meal against the day's target, with a 14-day calorie strip |
 | **Weight & progress** | Daily weights, a 7-day moving average, and a verdict that tells you when — and only when — to change the calorie target |
 | **Bulk plan** | Seven feedings portioned to your exact target, each with 3–5 Indian alternatives, per-item swaps, and a tickable weekly shopping list |
-| **Kitchen cards** | Hindi + English recipe cards on a 7-day rotation, printable, quantities in grams *and* katori/chammach |
+| **Kitchen cards** | Hindi + English recipe cards on a 7-day rotation, printable with a QR code to the cooking video, quantities in grams *and* katori/chammach |
 | **Food database** | 122 Indian foods per 100 g and per household serving, plus your own additions |
 
 ### Options and swaps
@@ -36,6 +36,22 @@ Choices are stored per profile as JSON (`profiles.plan_config`) and validated se
 unknown food or meal is dropped rather than stored, and the solver independently clamps anything
 stale, so a config written by an older version can never crash a plan. Because the server rebuilds
 the plan from the stored config, **Load bulk plan** and the shopping list follow the swaps too.
+
+### Cooking videos
+
+Every card links to a video. By default that is a **YouTube search** built from the dish's Hindi
+name — `मसाला ओट्स रेसिपी` — never a hardcoded video id. Shipping specific links would mean shipping
+things that rot, get taken down, or turn out to be the wrong dish, and nobody would notice until
+the person cooking had already followed one.
+
+Anyone can **pin a specific video** to a recipe once they have watched it and liked it; it is stored
+in `recipe_links` and shared by the whole household, because the video is a property of the dish,
+not of one person. Pasted URLs are parsed and rebuilt rather than stored as typed, so a Shorts link,
+a `youtu.be` share link and a link with tracking parameters all normalise to the same clean watch
+URL — and anything that is not a YouTube video is refused rather than printed onto a card.
+
+Printed cards carry a **QR code** for whichever link applies, generated in the browser rather than
+fetched from an image service: a card that only works online is a card that fails in a kitchen.
 
 ### The plan solver
 

@@ -28,10 +28,14 @@ export interface ShoppingItem {
 export interface WeightPoint { d: string; w: number }
 export interface DayTotal { d: string; k: number; p: number }
 
+/** A cooking video pinned to a recipe, shared by everyone in the household. */
+export interface RecipeLink { id: string; url: string; title: string }
+
 export interface Bootstrap {
   profiles: AppProfile[];
   customFoods: CustomFood[];
   customRecipes: CustomRecipe[];
+  recipeLinks: RecipeLink[];
 }
 
 /** Thin fetch wrapper: JSON in, JSON out, and server error messages surface as

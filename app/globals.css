@@ -504,3 +504,53 @@ tbody tr:hover{background:var(--surface-2)}
 .swap-opt .so-n{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .swap-opt .so-k{font-family:var(--mono); font-size:11px; color:var(--ink-3); flex:none}
 .swap-pop-ft{padding:8px 12px; border-top:1px solid var(--line); background:var(--surface-2)}
+
+/* ================================================== COOKING VIDEOS & QR ======
+   A card can carry a pinned YouTube video. On screen it is a link; on the
+   printed card it becomes a QR code, because the person actually cooking has a
+   phone in her hand and a sheet of paper on the counter. */
+
+.vid-row{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:11px;
+  padding-top:11px; border-top:1px solid var(--line);
+}
+.vid-link{
+  display:inline-flex; align-items:center; gap:7px; text-decoration:none;
+  background:var(--accent); color:var(--on-accent); border-radius:99px;
+  padding:6px 13px 6px 10px; font-size:13px; font-weight:600; max-width:100%;
+  transition:background .15s;
+}
+.vid-link:hover{background:var(--accent-hi)}
+.vid-link .vl-t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.vid-link svg{width:15px; height:15px; flex:none; fill:currentColor}
+.vid-search{
+  display:inline-flex; align-items:center; gap:7px; text-decoration:none;
+  border:1px solid var(--line-strong); background:var(--surface); color:var(--ink-2);
+  border-radius:99px; padding:6px 13px 6px 10px; font-size:13px; font-weight:500;
+  transition:background .15s, border-color .15s, color .15s;
+}
+.vid-search:hover{background:var(--surface-2); color:var(--ink); border-color:var(--line-strong)}
+.vid-search svg{width:15px; height:15px; flex:none; fill:currentColor; opacity:.75}
+.vid-hint{font-size:12.5px; color:var(--ink-3)}
+
+.vid-form{display:flex; gap:7px; flex:1; min-width:210px; flex-wrap:wrap}
+.vid-form input{
+  flex:1; min-width:170px; background:var(--ground); border:1px solid var(--line-strong);
+  border-radius:9px; padding:7px 10px; font-size:13px; font-family:var(--sans);
+}
+
+/* The QR only exists on paper. */
+.qr{display:none}
+@media print{
+  .qr{
+    display:flex; align-items:center; gap:12px; margin-top:10px; padding-top:10px;
+    border-top:1px solid #ddd; break-inside:avoid;
+  }
+  .qr svg{width:74px; height:74px; flex:none}
+  .qr-cap{font-size:9pt; color:#444; line-height:1.4}
+  .qr-cap b{display:block; font-size:9.5pt; color:#000}
+  .qr-cap span{
+    display:block; margin-top:2px; font-family:var(--mono); font-size:7.5pt;
+    word-break:break-all; color:#666;
+  }
+}

@@ -34,11 +34,12 @@ export async function GET() {
       );
     }
 
-    const [foods, recipes] = await Promise.all([
+    const [foods, recipes, links] = await Promise.all([
       q(`SELECT id, name, cat, kcal_100, protein_100, carbs_100, fat_100, serving_g, serving_label, note
            FROM custom_foods ORDER BY name`),
       q(`SELECT id, title_en, title_hi, meal, mins, serves, ingredients, extras, steps, day_index
            FROM custom_recipes ORDER BY created_at DESC`),
+      q(`SELECT recipe_id, url, title FROM recipe_links`),
     ]);
 
     return ok({
@@ -56,6 +57,7 @@ export async function GET() {
         steps: Array.isArray(r.steps) ? r.steps : [],
         day: r.day_index === null ? null : Number(r.day_index),
       })),
+      recipeLinks: links.map((r) => ({ id: r.recipe_id, url: r.url, title: r.title })),
     });
   });
 }

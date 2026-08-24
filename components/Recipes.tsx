@@ -1,19 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { api, jsonBody, type CustomRecipe, type FreeIngredient } from "@/lib/client";
+import { api, jsonBody, type CustomRecipe, type FreeIngredient, type RecipeLink } from "@/lib/client";
 import {
   F, RECIPES, ROTATION, recipeMacros, r0, r1, type Recipe,
 } from "@/lib/nutrition";
 import { SectionHead } from "./ui";
+import VideoRow from "./VideoRow";
 
 export default function Recipes({
-  custom, onChange, say,
+  custom, onChange, links, onLinkChange, say,
 }: {
   custom: CustomRecipe[];
   onChange: (next: CustomRecipe[]) => void;
+  links: RecipeLink[];
+  onLinkChange: (next: RecipeLink | null, id: string) => void;
   say: (m: string, bad?: boolean) => void;
 }) {
+  const linkFor = (id: string) => links.find((l) => l.id === id);
   const [dayIdx, setDayIdx] = useState(() => new Date().getDay());
   const day = ROTATION[dayIdx];
 
@@ -39,6 +43,8 @@ export default function Recipes({
       <SectionHead eyebrow="Step six" title="Kitchen cards">
         Hand these to whoever cooks. Every card is Hindi and English side by side, with quantities in
         both grams and household measures (katori, chammach) so nothing depends on owning a scale.
+        Each one links to a cooking video, and prints with a QR code so the video opens from the
+        paper card on a phone.
       </SectionHead>
 
       <div className="rot no-print" role="group" aria-label="Day of the week">
@@ -60,8 +66,13 @@ export default function Recipes({
       </div>
 
       <div className="stack" style={{ gap: 18 }}>
-        {builtIn.map((r) => <BuiltInCard key={r.id} r={r} />)}
-        {mine.map((r) => <CustomCard key={r.id} r={r} onRemove={() => removeCustom(r.cid)} />)}
+        {builtIn.map((r) => (
+          <BuiltInCard key={r.id} r={r} link={linkFor(r.id)} onLinkChange={onLinkChange} say={say} />
+        ))}
+        {mine.map((r) => (
+          <CustomCard key={r.id} r={r} link={linkFor(r.id)} onLinkChange={onLinkChange} say={say}
+                      onRemove={() => removeCustom(r.cid)} />
+        ))}
       </div>
 
       <div className="no-print" style={{ marginTop: 22 }}>
@@ -77,12 +88,13 @@ export default function Recipes({
 /* ----------------------------------------------------------------- the cards */
 
 function CardShell({
-  en, hi, meal, mins, serves, ingredients, steps, macros, onRemove,
+  en, hi, meal, mins, serves, ingredients, steps, macros, onRemove, video,
 }: {
   en: string; hi: string; meal: string; mins: number; serves: number;
   ingredients: React.ReactNode; steps: [string, string][];
   macros?: { k: number; p: number; c: number; f: number };
   onRemove?: () => void;
+  video?: React.ReactNode;
 }) {
   return (
     <article className="rcard">
@@ -101,6 +113,7 @@ function CardShell({
           <span>{mins} min · <span className="hi">{mins} मिनट</span></span>
           <span>Serves <b>{serves}</b> · <span className="hi">{serves} लोगों के लिए</span></span>
         </div>
+        {video}
       </div>
 
       <div className="rcard-bd">
@@ -135,12 +148,20 @@ function CardShell({
   );
 }
 
-function BuiltInCard({ r }: { r: Recipe }) {
+function BuiltInCard({
+  r, link, onLinkChange, say,
+}: {
+  r: Recipe; link?: RecipeLink;
+  onLinkChange: (next: RecipeLink | null, id: string) => void;
+  say: (m: string, bad?: boolean) => void;
+}) {
   const m = recipeMacros(r);
   return (
     <CardShell
       en={r.en} hi={r.hi} meal={r.meal} mins={r.mins} serves={r.serves}
       macros={m} steps={r.steps}
+      video={<VideoRow recipeId={r.id} nameEn={r.en} nameHi={r.hi} link={link}
+                       onChange={onLinkChange} say={say} />}
       ingredients={
         <>
           {r.ing.map((i) => (
@@ -164,11 +185,20 @@ function BuiltInCard({ r }: { r: Recipe }) {
   );
 }
 
-function CustomCard({ r, onRemove }: { r: CustomRecipe; onRemove: () => void }) {
+function CustomCard({
+  r, link, onLinkChange, say, onRemove,
+}: {
+  r: CustomRecipe; link?: RecipeLink;
+  onLinkChange: (next: RecipeLink | null, id: string) => void;
+  say: (m: string, bad?: boolean) => void;
+  onRemove: () => void;
+}) {
   return (
     <CardShell
       en={r.en} hi={r.hi} meal={r.meal} mins={r.mins} serves={r.serves}
       steps={r.steps} onRemove={onRemove}
+      video={<VideoRow recipeId={r.id} nameEn={r.en} nameHi={r.hi || undefined} link={link}
+                       onChange={onLinkChange} say={say} />}
       ingredients={
         <>
           {r.free.map((i, n) => (

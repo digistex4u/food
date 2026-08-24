@@ -150,6 +150,16 @@ CREATE TABLE IF NOT EXISTS shopping_items (
 );
 CREATE INDEX IF NOT EXISTS shopping_profile ON shopping_items (profile_id);
 
+-- One saved cooking video per recipe. Keyed by recipe id so it covers both the
+-- shipped cards ("paneer-bhurji") and custom ones ("c12"), and is shared by the
+-- whole household rather than per profile — the video is a property of the dish.
+CREATE TABLE IF NOT EXISTS recipe_links (
+  recipe_id  TEXT PRIMARY KEY,
+  url        TEXT NOT NULL,
+  title      TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Added after the first release: meal options and per-item swaps. Existing
 -- deployments get the column here rather than needing a migration step.
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS plan_config JSONB NOT NULL DEFAULT '{}'::jsonb;

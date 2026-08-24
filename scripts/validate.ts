@@ -10,7 +10,8 @@
 import { createHash } from "node:crypto";
 import {
   FOODS, PLAN, RECIPES, ROTATION, SWAP_GROUPS, buildPlan, calc, hasFood,
-  recipeMacros, type GoalKey, type PlanConfig, type Profile, type Sex,
+  parseYouTubeUrl, recipeMacros, youtubeSearchUrl,
+  type GoalKey, type PlanConfig, type Profile, type Sex,
 } from "../lib/nutrition";
 
 let failures = 0;
@@ -110,6 +111,40 @@ for (const m of PLAN) {
   }
 }
 pass(`${swapChecks} swaps applied, all portions plausible and the day still lands on target`);
+
+console.log("\n== YouTube links are parsed, not trusted ==");
+const WATCH = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+const urlCases: [string, string | null][] = [
+  ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", WATCH],
+  ["https://youtu.be/dQw4w9WgXcQ", WATCH],
+  ["youtube.com/watch?v=dQw4w9WgXcQ", WATCH],
+  ["https://m.youtube.com/watch?v=dQw4w9WgXcQ", WATCH],
+  ["https://www.youtube.com/shorts/dQw4w9WgXcQ", WATCH],
+  ["https://www.youtube.com/embed/dQw4w9WgXcQ", WATCH],
+  // tracking junk from a share sheet must be stripped, not stored
+  ["https://youtu.be/dQw4w9WgXcQ?si=AbCdEf123456", WATCH],
+  ["https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123&index=4", WATCH],
+  // a timestamp is meaningful, so it survives
+  ["https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90s", WATCH + "&t=90s"],
+  // and everything that is not a YouTube video is refused
+  ["https://vimeo.com/12345", null],
+  ["https://example.com/watch?v=dQw4w9WgXcQ", null],
+  ["javascript:alert(1)", null],
+  ["not a url at all", null],
+  ["", null],
+  ["https://www.youtube.com/watch?v=short", null],
+];
+for (const [input, want] of urlCases) {
+  const got = parseYouTubeUrl(input);
+  if (got !== want) fail(`parseYouTubeUrl(${JSON.stringify(input)}) gave ${JSON.stringify(got)}, wanted ${JSON.stringify(want)}`);
+}
+// every shipped recipe must produce a usable search link
+for (const r of RECIPES) {
+  const u = youtubeSearchUrl(r.en, r.hi);
+  if (!u.startsWith("https://www.youtube.com/results?search_query=") || u.length < 50)
+    fail(`${r.en}: bad search URL ${u}`);
+}
+pass(`${urlCases.length} URL forms parsed correctly, ${RECIPES.length} recipe search links built`);
 
 // A fingerprint of the data the build actually compiled. Printed so a
 // deployment's log can be compared against a local run: if the digests match,

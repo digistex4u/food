@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   api, jsonBody, type AppProfile, type Bootstrap, type CustomFood, type CustomRecipe,
+  type RecipeLink,
 } from "@/lib/client";
 import { FOODS, type Food } from "@/lib/nutrition";
 import { Loading } from "./ui";
@@ -143,6 +144,15 @@ export default function App() {
   const setCustomRecipes = (next: CustomRecipe[]) =>
     setBoot((b) => (b ? { ...b, customRecipes: next } : b));
 
+  const recipeLinks = boot?.recipeLinks ?? [];
+  /** Pin or unpin a cooking video, keeping the local list in step. */
+  const setRecipeLink = (next: RecipeLink | null, id: string) =>
+    setBoot((b) => {
+      if (!b) return b;
+      const rest = (b.recipeLinks ?? []).filter((l) => l.id !== id);
+      return { ...b, recipeLinks: next ? [...rest, next] : rest };
+    });
+
   /** Built-ins plus the household's own foods, as one searchable list. */
   const allFoods: Food[] = useMemo(() => [...FOODS, ...customFoods], [customFoods]);
 
@@ -267,6 +277,8 @@ export default function App() {
           <Recipes
             custom={customRecipes}
             onChange={setCustomRecipes}
+            links={recipeLinks}
+            onLinkChange={setRecipeLink}
             say={say}
           />
         )}
