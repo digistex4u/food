@@ -126,7 +126,9 @@ export default function Numbers({
           <Tile hero k="Eat this many" v={c.target} unit="kcal"
                 note={`${c.surplus >= 0 ? "+" : ""}${c.surplus} vs maintenance`} />
           <Tile k="Protein" v={c.protein} unit="g" color="var(--protein)"
-                note={`${c.g.pk} g per kg bodyweight`} />
+                note={c.proteinBasis === "lean"
+                  ? `${c.proteinPerKg} g per kg of lean mass — ${c.body.lbm} kg`
+                  : `${c.proteinPerKg} g per kg bodyweight — add a waist measurement for a better figure`} />
           <Tile k="Carbs" v={c.carbG} unit="g" color="var(--carb)"
                 note="whatever's left after protein and fat" />
           <Tile k="Fat" v={c.fatG} unit="g" color="var(--fat)"

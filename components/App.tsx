@@ -8,6 +8,7 @@ import {
 import { FOODS, type Food } from "@/lib/nutrition";
 import { Loading } from "./ui";
 import Numbers from "./Numbers";
+import BodyShape from "./BodyShape";
 import Mechanics from "./Mechanics";
 import Tracker from "./Tracker";
 import Weight from "./Weight";
@@ -17,6 +18,7 @@ import FoodDb from "./FoodDb";
 
 const TABS = [
   { id: "num",   label: "Your numbers" },
+  { id: "body",  label: "Body & fat pattern" },
   { id: "mech",  label: "How the body works" },
   { id: "track", label: "Daily tracker" },
   { id: "wt",    label: "Weight & progress" },
@@ -269,6 +271,7 @@ export default function App() {
 
       <main className="wrap">
         {tab === "num"   && <Numbers me={me} onPatch={patchProfile} />}
+        {tab === "body"  && <BodyShape me={me} onPatch={patchProfile} />}
         {tab === "mech"  && <Mechanics />}
         {tab === "track" && <Tracker me={me} foods={allFoods} say={say} />}
         {tab === "wt"    && <Weight me={me} say={say} />}
