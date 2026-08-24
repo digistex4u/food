@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 const GOALS = ["lean", "fast", "maintain", "recomp", "cut"];
 const ACTS = ["1.2", "1.375", "1.55", "1.725", "1.9"];
+const PATTERNS = ["central", "lower", "even", "thinfat", "unset"];
+const BUILDS = ["hardgainer", "balanced", "gains-fat", "unset"];
 const TAGS = new Set(PLAN.map((m) => m.tag));
 
 /**
@@ -53,6 +55,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (b.wt !== undefined) push("weight_kg", numField(b.wt, "Weight", 25, 300));
     if (b.act !== undefined && ACTS.includes(String(b.act))) push("activity", String(b.act));
     if (b.goal !== undefined && GOALS.includes(String(b.goal))) push("goal", String(b.goal));
+    // A tape measurement can be cleared as well as set, so null is meaningful here.
+    if (b.waist !== undefined)
+      push("waist_cm", b.waist === null || b.waist === "" ? null : numField(b.waist, "Waist", 40, 200));
+    if (b.hip !== undefined)
+      push("hip_cm", b.hip === null || b.hip === "" ? null : numField(b.hip, "Hip", 40, 200));
+    if (b.pattern !== undefined && PATTERNS.includes(String(b.pattern))) push("fat_pattern", String(b.pattern));
+    if (b.build !== undefined && BUILDS.includes(String(b.build))) push("build_type", String(b.build));
     if (b.planConfig !== undefined) {
       sets.push(`plan_config = $${sets.length + 1}::jsonb`);
       vals.push(JSON.stringify(cleanConfig(b.planConfig)));
