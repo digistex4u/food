@@ -1,10 +1,15 @@
 "use client";
 
 import type { Food, PlanConfig, Profile, Recipe } from "@/lib/nutrition";
+import type { MenuConfig } from "@/lib/lifestyle";
 
-/** A profile as the API returns it: the body numbers plus the person's chosen
- *  meal options and food swaps. */
-export interface AppProfile extends Profile { planConfig: PlanConfig }
+/** A profile as the API returns it: the body numbers, the person's chosen meal
+ *  options and food swaps on the fitness plan, and their picks on the lifestyle
+ *  calendar. */
+export interface AppProfile extends Profile {
+  planConfig: PlanConfig;
+  menuConfig: MenuConfig;
+}
 
 export interface CustomFood extends Food { cid: number; custom: true }
 export interface FreeIngredient { qty: string; en: string; hi: string }

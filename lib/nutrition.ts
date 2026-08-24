@@ -46,7 +46,61 @@ export interface Profile {
   pattern?: FatPattern;
   /** Self-reported build. Nudges surplus size only; never the macro split. */
   build?: BuildType;
+  /** Which half of the app this person is using. See PATHS below. */
+  path?: PathKey;
 }
+
+/**
+ * The first question the app asks, because everything after it differs.
+ *
+ * Fitness is the original app: measure, calculate a target, portion the day to
+ * it in grams, log what was actually eaten, and adjust from the trend. That
+ * only works for someone willing to weigh food.
+ *
+ * Lifestyle is for everyone else — a month of light Indian meals to choose
+ * from, and a video for whoever is cooking. No target, no grams, and no daily
+ * food log, because a tracker nobody fills in is worse than no tracker: it
+ * turns an app you use into an app you owe.
+ */
+export type PathKey = "fitness" | "lifestyle" | "unset";
+
+export interface PathOption {
+  v: PathKey; label: string; sub: string; blurb: string; gives: string[];
+}
+
+export const PATHS: PathOption[] = [
+  {
+    v: "fitness",
+    label: "Fitness",
+    sub: "For weight loss",
+    blurb:
+      "You want a number and you are willing to hit it. The app measures you, works out the " +
+      "calories and protein that follow, portions every meal to that target in grams, and " +
+      "reads your weight trend to tell you when to change it.",
+    gives: [
+      "Your calorie and protein target, calculated from your own measurements",
+      "A 30-day plan where every day is portioned to that target",
+      "A daily food log and a weight trend that says when to adjust",
+      "Kitchen cards in Hindi and English, with a video for each dish",
+    ],
+  },
+  {
+    v: "lifestyle",
+    label: "Lifestyle",
+    sub: "Just for daily hustle",
+    blurb:
+      "You do not want to weigh rice. You want four decent meals a day that happen to be " +
+      "light, decided in advance so nobody has to think about it at seven in the evening.",
+    gives: [
+      "A 30-day calendar — breakfast, lunch, evening snack and dinner",
+      "Three Indian options for every meal, every day, all vegetarian",
+      "A YouTube recipe link on every single suggestion",
+      "A printable week for whoever cooks — no logging, ever",
+    ],
+  },
+];
+
+export const pathOf = (p: { path?: PathKey }): PathKey => p.path ?? "unset";
 
 export interface Calc {
   bmr: number; tdee: number; target: number;
@@ -1141,4 +1195,90 @@ export function parseYouTubeUrl(raw: string): string | null {
   if (!/^[\w-]{11}$/.test(id)) return null;
   const t = u.searchParams.get("t");
   return `https://www.youtube.com/watch?v=${id}${t ? `&t=${encodeURIComponent(t)}` : ""}`;
+}
+
+/* ------------------------------------------------------------ the 30-day plan */
+/**
+ * A month, rather than a day repeated thirty times.
+ *
+ * The plan template already carries three to five Indian alternatives for every
+ * feeding. A 30-day schedule is therefore not new data — it is a walk over the
+ * alternatives already there, one that visits all of them and never serves the
+ * same breakfast two mornings running.
+ *
+ * Each meal advances through its own options at its own stride. A stride only
+ * cycles through every option if it is coprime with the option count, so the
+ * stride is *chosen* to be coprime rather than assumed to be: with four options
+ * and a stride of two you would see exactly two of them for the whole month.
+ *
+ * Anything the person has pinned themselves is left alone. Choosing oats on the
+ * plan screen means oats every morning, which is the whole point of choosing.
+ */
+export const MONTH_DAYS = 30;
+
+const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+
+/** The smallest stride at or above `want` that walks every option exactly once. */
+export function coprimeStride(len: number, want: number): number {
+  if (len <= 1) return 1;
+  for (let s = Math.max(1, want % len || len); s < want + len; s++) {
+    if (gcd(s % len || len, len) === 1) return s % len || len;
+  }
+  return 1;
+}
+
+/** The config for one day of the month: pinned meals held, the rest rotating. */
+export function dayConfig(day: number, base?: PlanConfig): PlanConfig {
+  const pinned = base?.variants ?? {};
+  const variants: Record<string, number> = {};
+  PLAN.forEach((m, i) => {
+    const chosen = pinned[m.tag];
+    if (Number.isInteger(chosen) && chosen >= 0 && chosen < m.options.length) {
+      variants[m.tag] = chosen;
+      return;
+    }
+    variants[m.tag] = (day * coprimeStride(m.options.length, i + 1) + i) % m.options.length;
+  });
+  return { variants, swaps: base?.swaps ?? {} };
+}
+
+/**
+ * The three recipe cards to cook on a given day. The seven-day rotation is
+ * shifted by one each week, so week two's Monday is not week one's Monday —
+ * thirty days of the same seven dinners in the same order is a plan people
+ * abandon in week two.
+ */
+export function recipesForDay(day: number): string[] {
+  return ROTATION[(day + Math.floor(day / ROTATION.length)) % ROTATION.length].r;
+}
+
+/** Weekday name for a day of the plan, from the real date rather than the rotation. */
+export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const WEEKDAYS_HI = ["रविवार", "सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार"];
+
+/**
+ * The cooking video for a plan meal, or nothing.
+ *
+ * A meal option is a menu, not always a dish: "Besan chilla with curd" has a
+ * video, "Milk, nuts and dates" does not, and searching YouTube for the second
+ * one would hand somebody a link that answers a question they did not ask. So
+ * the subject of the search is taken from the data rather than the label — the
+ * first item in the meal that the food table classifies as a cooked dish. When
+ * a meal is only milk and almonds, there is no chip, which is the honest
+ * outcome.
+ */
+export function mealVideoUrl(meal: { name: string; items: { food: Food }[] }): string | null {
+  // Food names carry a qualifier after the comma ("Poha, cooked"); the video
+  // search wants the dish, not the state it is in.
+  const dish = meal.items.find((i) => i.food.cat === "dish");
+  if (dish) return youtubeSearchUrl(dish.food.name.replace(/,.*$/, "").trim());
+
+  // No named dish, but a grain in the meal means someone still has to cook it —
+  // oats in milk, dalia khichdi, a sattu shake. There the menu label is the
+  // better search subject than any single ingredient, minus what it is served
+  // with. Milk, nuts and fruit fall through to nothing, which is correct: there
+  // is no recipe for pouring a glass of milk, and offering a link would only
+  // send someone to a video that answers a question they did not ask.
+  if (!meal.items.some((i) => i.food.cat === "grain")) return null;
+  return youtubeSearchUrl(meal.name.replace(/\s+with\s+.*$/i, "").trim());
 }

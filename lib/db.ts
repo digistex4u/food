@@ -174,6 +174,13 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS waist_cm    NUMERIC(5,1);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS hip_cm      NUMERIC(5,1);
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS fat_pattern TEXT NOT NULL DEFAULT 'unset';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS build_type  TEXT NOT NULL DEFAULT 'unset';
+
+-- The fitness / lifestyle split, and the lifestyle calendar's chosen meals.
+-- 'unset' is meaningful rather than a placeholder: it is what makes the wizard
+-- open on the path question instead of guessing which half of the app someone
+-- wants, and it is why the default is not 'fitness'.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS path        TEXT NOT NULL DEFAULT 'unset';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS menu_config JSONB NOT NULL DEFAULT '{}'::jsonb;
 `;
 
 /**
