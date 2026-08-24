@@ -7,6 +7,12 @@
  * FoodData Central, per 100 g, rounded to one decimal.
  */
 
+import {
+  buildAdjustment, proteinTarget, readBody,
+  type BodyRead, type BuildType, type FatPattern,
+} from "./bodycomp";
+
+export type { BodyRead, BuildType, FatPattern };
 export type GoalKey = "lean" | "fast" | "maintain" | "recomp" | "cut";
 export type Sex = "m" | "f";
 
@@ -32,12 +38,27 @@ export interface Profile {
   /** activity multiplier, as a string so it round-trips through <select> */
   act: string;
   goal: GoalKey;
+  /** Waist in cm — optional, but it unlocks body-fat and lean-mass estimates. */
+  waist?: number | null;
+  /** Hip in cm — optional, only used for the waist-to-hip ratio. */
+  hip?: number | null;
+  /** Where fat sits. Observed, never inferred from a physique archetype. */
+  pattern?: FatPattern;
+  /** Self-reported build. Nudges surplus size only; never the macro split. */
+  build?: BuildType;
 }
 
 export interface Calc {
   bmr: number; tdee: number; target: number;
   protein: number; fatG: number; carbG: number;
   bmi: number; g: Goal; wkLo: number; wkHi: number; surplus: number;
+  /** Body-composition read, present only when a waist measurement exists. */
+  body: BodyRead;
+  /** Whether the protein figure came from lean mass or from total bodyweight. */
+  proteinBasis: "lean" | "bodyweight";
+  proteinPerKg: number;
+  /** How much the self-reported build moved the surplus, as a fraction of TDEE. */
+  buildAdj: number;
 }
 
 export interface Mechanism {
@@ -816,15 +837,29 @@ export function calc(p: Profile): Calc {
   const bmr = Math.round(10*w + 6.25*h - 5*a + (p.sex==="m" ? 5 : -161));
   const tdee = Math.round(bmr * act);
   const g = GOALS[p.goal];
-  const target = Math.round(tdee * (1 + g.pct));
-  const protein = Math.round(w * g.pk);
+
+  // Body composition first — the protein target depends on it.
+  const body = readBody(p.sex, h, w, { waist: p.waist, hip: p.hip }, p.pattern ?? "unset");
+
+  // Self-reported build nudges the surplus by ±5%, and only when gaining.
+  const buildAdj = buildAdjustment(p.build ?? "unset", g.dir);
+  const target = Math.round(tdee * (1 + g.pct + buildAdj));
+
+  // Protein per kg of LEAN mass when a waist measurement makes that estimable.
+  // Fat tissue needs almost none, so g/kg-bodyweight overshoots for anyone
+  // carrying more of it — see proteinTarget() for the numbers and the sources.
+  const pt = proteinTarget(g.dir, w, body.lbm);
+  const protein = pt.grams;
+
   const fatG = Math.round((target * g.fatPct) / 9);
   const carbG = Math.max(0, Math.round((target - protein*4 - fatG*9) / 4));
-  const bmi = w / Math.pow(h/100, 2);
+  const bmi = body.bmi;
   // realistic weekly gain: 0.25–0.5 % bodyweight for a bulk
   const wkLo = g.dir>0 ? w*0.0025 : (g.dir<0 ? -w*0.010 : 0);
   const wkHi = g.dir>0 ? w*0.005  : (g.dir<0 ? -w*0.005 : 0);
-  return {bmr, tdee, target, protein, fatG, carbG, bmi, g, wkLo, wkHi, surplus: target - tdee};
+  return {bmr, tdee, target, protein, fatG, carbG, bmi, g, wkLo, wkHi,
+          surplus: target - tdee, body,
+          proteinBasis: pt.basis, proteinPerKg: pt.perKg, buildAdj};
 }
 
 export const nut = (food: Macro, g: number): Nutrients => ({k: food.k*g/100, p: food.p*g/100, c: food.c*g/100, f: food.f*g/100});

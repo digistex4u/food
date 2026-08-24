@@ -78,6 +78,10 @@ CREATE TABLE IF NOT EXISTS profiles (
   weight_kg   NUMERIC(5,1) NOT NULL DEFAULT 65,
   activity    TEXT NOT NULL DEFAULT '1.375',
   goal        TEXT NOT NULL DEFAULT 'lean',
+  waist_cm    NUMERIC(5,1),
+  hip_cm      NUMERIC(5,1),
+  fat_pattern TEXT NOT NULL DEFAULT 'unset',
+  build_type  TEXT NOT NULL DEFAULT 'unset',
   plan_config JSONB NOT NULL DEFAULT '{}'::jsonb,
   sort_order  INTEGER NOT NULL DEFAULT 0,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -163,6 +167,13 @@ CREATE TABLE IF NOT EXISTS recipe_links (
 -- Added after the first release: meal options and per-item swaps. Existing
 -- deployments get the column here rather than needing a migration step.
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS plan_config JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Body composition, added later: a waist measurement lets the app estimate body
+-- fat and set protein from lean mass instead of total weight.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS waist_cm    NUMERIC(5,1);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS hip_cm      NUMERIC(5,1);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS fat_pattern TEXT NOT NULL DEFAULT 'unset';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS build_type  TEXT NOT NULL DEFAULT 'unset';
 `;
 
 /**
