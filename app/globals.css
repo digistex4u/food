@@ -554,3 +554,63 @@ tbody tr:hover{background:var(--surface-2)}
     word-break:break-all; color:#666;
   }
 }
+
+/* ============================================== BODY COMPOSITION & PATTERN ==
+   Where fat sits, measured with a tape rather than guessed from a physique
+   archetype. The selectors are cards because each option carries a real
+   explanation of what it means and what it changes. */
+
+.pick-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+@media(max-width:700px){.pick-grid{grid-template-columns:1fr}}
+.pick{
+  text-align:left; border:1px solid var(--line); background:var(--surface);
+  border-radius:var(--r); padding:12px 14px; display:flex; flex-direction:column; gap:4px;
+  transition:border-color .15s, background .15s; box-shadow:var(--shadow-sm);
+}
+.pick:hover{border-color:var(--line-strong); background:var(--surface-2)}
+.pick[aria-pressed="true"]{
+  border-color:var(--accent); background:var(--accent-soft); box-shadow:none;
+}
+.pick b{font-size:14px; font-weight:600; display:flex; align-items:center; gap:7px}
+.pick[aria-pressed="true"] b{color:var(--accent)}
+.pick b::before{
+  content:""; width:13px; height:13px; border-radius:50%; flex:none;
+  border:2px solid var(--line-strong); transition:border-color .15s, box-shadow .15s;
+}
+.pick[aria-pressed="true"] b::before{
+  border-color:var(--accent); box-shadow:inset 0 0 0 3px var(--accent);
+}
+.pick small{font-size:12.5px; color:var(--ink-3); line-height:1.45; padding-left:20px}
+
+/* risk meter */
+.meter{margin-top:4px}
+.meter-track{
+  display:flex; height:8px; border-radius:99px; overflow:hidden; background:var(--surface-2);
+}
+.meter-seg{flex:1; border-right:2px solid var(--surface)}
+.meter-seg:last-child{border-right:0}
+.meter-seg.on-healthy{background:var(--good)}
+.meter-seg.on-increased{background:var(--warn)}
+.meter-seg.on-high{background:var(--crit)}
+.meter-seg.off{background:var(--surface-3)}
+.meter-scale{
+  display:flex; justify-content:space-between; margin-top:5px;
+  font-family:var(--mono); font-size:10px; color:var(--ink-3);
+}
+.band-pill{
+  display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600;
+  padding:4px 11px; border-radius:99px;
+}
+.band-healthy{background:var(--accent-soft); color:var(--good)}
+.band-increased{background:var(--carb-soft); color:var(--warn)}
+.band-high{background:var(--fat-soft); color:var(--crit)}
+
+.est-tag{
+  font-family:var(--mono); font-size:9.5px; font-weight:600; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); background:var(--surface-2);
+  padding:2px 7px; border-radius:99px; margin-left:6px; vertical-align:middle;
+}
+.measure-help{
+  font-size:12.5px; color:var(--ink-3); line-height:1.5; margin-top:8px;
+  padding-left:11px; border-left:2px solid var(--line);
+}
