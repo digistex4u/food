@@ -338,7 +338,7 @@ tbody tr:hover{background:var(--surface-2)}
 /* ============ PRINT ============ */
 @media print{
   :root{--ground:#fff; --surface:#fff; --surface-2:#f4f4f0; --line:#c9cfc4; --ink:#000; --ink-2:#333; --ink-3:#666; --shadow:none; --shadow-sm:none}
-  .topbar,.tabs,.no-print{display:none !important}
+  .topbar,.tabs,.steprail,.wiznav,.no-print{display:none !important}
   body{background:#fff; font-size:11pt}
   main{padding:0}
   .panel[hidden]{display:none}
@@ -613,4 +613,230 @@ tbody tr:hover{background:var(--surface-2)}
 .measure-help{
   font-size:12.5px; color:var(--ink-3); line-height:1.5; margin-top:8px;
   padding-left:11px; border-left:2px solid var(--line);
+}
+
+/* ============================================================== THE WIZARD ==
+   One screen at a time. The rail is the map, the footer is the engine, and
+   both disappear when the page is printed — a kitchen card should not carry
+   navigation. */
+
+.steprail{
+  display:flex; gap:2px; overflow-x:auto; scrollbar-width:none;
+  border-bottom:1px solid var(--line); background:var(--ground);
+  position:sticky; top:60px; z-index:39;
+}
+.steprail::-webkit-scrollbar{display:none}
+.srail{
+  border:0; background:none; padding:11px 13px 10px; font-size:13.5px; font-weight:500;
+  color:var(--ink-3); white-space:nowrap; border-bottom:2px solid transparent; margin-bottom:-1px;
+  display:flex; align-items:center; gap:6px; transition:color .15s, border-color .15s;
+}
+.srail:hover:not(:disabled){color:var(--ink)}
+.srail:disabled{opacity:.42; cursor:default}
+.srail[aria-current="step"]{color:var(--accent); border-bottom-color:var(--accent); font-weight:600}
+.sr-num{
+  font-family:var(--mono); font-size:10px; font-weight:500; color:var(--ink-3);
+  display:inline-grid; place-items:center; width:16px; height:16px; flex:none;
+}
+.srail[aria-current="step"] .sr-num{color:var(--accent)}
+.srail[data-done] .sr-num{
+  background:var(--accent-soft); color:var(--accent); border-radius:99px;
+}
+.srail[data-done] .sr-num svg{
+  width:10px; height:10px; fill:none; stroke:var(--accent); stroke-width:3;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+
+.wiz-main{padding-bottom:104px}
+
+.wiznav{
+  position:sticky; bottom:0; z-index:38; background:var(--ground);
+  border-top:1px solid var(--line); box-shadow:0 -8px 24px -18px rgba(0,0,0,.5);
+}
+.wiznav-in{display:flex; align-items:center; gap:14px; height:64px}
+.wn-count{
+  margin:0 auto; font-size:11.5px; color:var(--ink-3); text-align:center; line-height:1.3;
+  letter-spacing:.06em; text-transform:uppercase; font-weight:600;
+}
+.wn-count small{
+  display:block; font-family:var(--sans); font-size:13px; color:var(--ink);
+  letter-spacing:normal; text-transform:none; font-weight:500;
+}
+@media(max-width:560px){
+  .wn-count small{display:none}
+  .wiznav-in{gap:8px}
+  .wiznav-in .btn{padding-left:12px; padding-right:12px; font-size:13px}
+}
+
+/* ---------------------------------------------------------- the path choice */
+
+.path-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+@media(max-width:760px){.path-grid{grid-template-columns:1fr}}
+
+.path-card{
+  display:flex; flex-direction:column; gap:8px; text-align:left; padding:22px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
+  box-shadow:var(--shadow); transition:border-color .15s, box-shadow .15s, transform .15s;
+}
+.path-card:hover{border-color:var(--line-strong); transform:translateY(-1px)}
+.path-card[aria-pressed="true"]{
+  border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), var(--shadow);
+}
+.pc-head{display:flex; align-items:center; gap:10px}
+.pc-label{font-size:23px; font-weight:600; letter-spacing:-.02em}
+.pc-chosen{
+  font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--on-accent); background:var(--accent);
+  padding:3px 8px; border-radius:99px; margin-left:auto;
+}
+.pc-sub{
+  font-size:13px; font-weight:600; color:var(--accent); letter-spacing:.02em;
+  margin-top:-4px;
+}
+.pc-blurb{font-size:14px; color:var(--ink-2); line-height:1.55}
+.pc-gives{display:flex; flex-direction:column; gap:6px; margin-top:6px}
+.pc-give{display:flex; gap:8px; font-size:13px; color:var(--ink-2); align-items:flex-start}
+.pp-tick{
+  width:14px; height:14px; flex:none; margin-top:4px; fill:none; stroke:var(--accent);
+  stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round;
+}
+
+/* ============================================================ THE 30 DAYS == */
+
+.week-rail{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px}
+.week-rail button{
+  border:1px solid var(--line); background:var(--surface); border-radius:99px;
+  padding:6px 14px; font-size:13px; font-weight:500; color:var(--ink-2);
+  transition:background .15s, border-color .15s, color .15s;
+}
+.week-rail button:hover{border-color:var(--line-strong); background:var(--surface-2)}
+.week-rail button[aria-pressed="true"]{
+  background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;
+}
+
+.day-card{overflow:hidden}
+.day-head{
+  display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+  padding:13px 20px; background:var(--surface-2); border-bottom:1px solid var(--line);
+}
+.dh-n{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--accent); letter-spacing:.06em}
+.dh-d{font-size:14.5px; font-weight:600}
+.dh-hi{font-size:13px; color:var(--ink-3)}
+.dh-k{font-size:12px; color:var(--ink-3); margin-left:auto; font-weight:600}
+
+.slot-row{
+  display:grid; grid-template-columns:118px 1fr; gap:16px;
+  padding:14px 20px; border-bottom:1px solid var(--line);
+}
+.slot-row:last-child{border-bottom:0}
+.sr-when{font-size:13.5px; font-weight:600; color:var(--ink)}
+.sr-when small{display:block; font-weight:400; font-size:11px; color:var(--ink-3); margin-top:1px}
+.sr-body{min-width:0}
+.opt-chips .chip-k{
+  font-family:var(--mono); font-size:10px; margin-left:6px; opacity:.65; font-weight:600;
+}
+.sr-chosen{
+  background:var(--surface-2); border-radius:var(--r); padding:11px 13px;
+}
+.sc-name{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:14.5px; font-weight:600}
+.sc-hi{font-size:13px; font-weight:400; color:var(--ink-3)}
+.sc-k{font-size:11.5px; color:var(--ink-3); margin-left:auto; font-weight:600}
+.sc-serve{font-size:13px; color:var(--ink-2); margin-top:3px}
+.sc-why{font-size:12.5px; color:var(--ink-3); margin-top:5px; font-style:italic}
+
+.ytc{
+  display:inline-flex; align-items:center; gap:6px; margin-top:9px;
+  border:1px solid var(--line); background:var(--surface); border-radius:99px;
+  padding:4px 11px 4px 9px; font-size:12px; font-weight:600; color:var(--ink-2);
+  text-decoration:none; transition:background .15s, color .15s, border-color .15s;
+}
+.ytc:hover{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
+.ytc svg{width:13px; height:13px; flex:none; fill:currentColor}
+
+/* ------------------------------------------------------- a fitness plan day */
+
+.fd-meals{display:flex; flex-direction:column; padding:6px 20px}
+.fd-meal{
+  display:flex; align-items:baseline; gap:12px; padding:6px 0;
+  border-bottom:1px solid var(--line); font-size:13.5px;
+}
+.fd-meal:last-child{border-bottom:0}
+.fdm-t{font-size:12px; color:var(--accent); font-weight:600; min-width:44px; flex:none}
+.fdm-n{color:var(--ink-2); min-width:0}
+.fdm-k{font-size:12px; color:var(--ink-3); margin-left:auto; font-weight:600}
+
+.fd-cook{
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
+  padding:13px 20px; background:var(--surface-2); border-top:1px solid var(--line);
+}
+.fdc-label{
+  font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--ink-3);
+}
+.fdc-item{display:flex; align-items:center; gap:9px; flex-wrap:wrap}
+.fdc-n{font-size:13.5px; font-weight:600}
+.fdc-n .hi{font-weight:400; color:var(--ink-3)}
+.fdc-item .ytc{margin-top:0}
+
+@media(max-width:600px){
+  .slot-row{grid-template-columns:1fr; gap:6px}
+  .day-head,.slot-row,.fd-meals,.fd-cook{padding-left:14px; padding-right:14px}
+}
+
+/* -------------------------------------------------- the week, on paper only */
+
+.week-print{display:none}
+@media print{
+  .week-print{display:block}
+  .week-print h3{font-size:15pt; margin-bottom:10px}
+  .week-print table{width:100%; border-collapse:collapse; table-layout:fixed}
+  .week-print th,.week-print td{
+    border:1px solid #bbb; padding:5px 6px; text-align:left; vertical-align:top;
+    font-size:8.5pt; line-height:1.3;
+  }
+  .week-print thead th{background:#f0f0ec; font-size:8.5pt}
+  .week-print tbody th{width:78px; font-size:9pt}
+  .week-print tbody th small{display:block; font-weight:400; color:#666}
+  .week-print td b{display:block; font-size:9pt}
+  .week-print td .hi{display:block; color:#333}
+  .week-print td small{display:block; color:#666; font-size:8pt; margin-top:2px}
+  .week-print tr{page-break-inside:avoid; break-inside:avoid}
+  .day-card{display:none}
+}
+
+/* The footer is the engine of the wizard, so it belongs at the bottom of the
+   window even when a step is short enough not to scroll. Sticky alone does not
+   do that — it needs something above it that grows. */
+body{min-height:100dvh; display:flex; flex-direction:column}
+body > main{flex:1 0 auto}
+body > .wiznav{margin-top:auto}
+@media print{ body{display:block} }
+
+/* What still goes on the plate. Sits at the foot of a day, in the same
+   register as the day's own totals rather than as an alarm. */
+.addon-row{
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 14px;
+  padding:12px 20px; background:var(--accent-soft); border-top:1px solid var(--line);
+}
+.addon-row.ar-over{background:var(--carb-soft)}
+.ar-label{
+  font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--accent); flex:none;
+}
+.ar-over .ar-label{color:var(--carb)}
+.ar-note{font-size:12.8px; color:var(--ink-2); flex:1 1 260px; min-width:0}
+.ar-adds{display:flex; flex-wrap:wrap; gap:6px}
+.ar-add{
+  background:var(--surface); border:1px solid var(--line); border-radius:99px;
+  padding:3px 11px; font-size:12.5px; font-weight:600; white-space:nowrap;
+}
+.ar-add .hi{font-weight:400; color:var(--ink-3)}
+@media(max-width:600px){.addon-row{padding-left:14px; padding-right:14px}}
+@media print{
+  .week-print .wp-note{font-size:8.5pt; color:#444; margin-bottom:8px}
+  .week-print tbody th{width:66px}
+}
+@media print{
+  /* A sheet for the kitchen wall carries the week, not the app's introduction. */
+  .month-step > .sec-head{display:none}
 }

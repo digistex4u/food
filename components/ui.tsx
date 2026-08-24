@@ -1,13 +1,34 @@
 "use client";
 
+import { createContext, useContext } from "react";
 import { r0, r1 } from "@/lib/nutrition";
+
+/**
+ * Which step of the wizard is on screen.
+ *
+ * The step numbers are not fixed: a lifestyle user never sees the tracker or
+ * the mechanics screens, so "Step five" means something different to them than
+ * it does to someone on the fitness path. Rather than thread a number through
+ * eight components, the shell publishes the position it actually rendered and
+ * every section heading reads it. The literal eyebrow each component passes
+ * survives as the fallback for anything rendered outside a step.
+ */
+const StepCtx = createContext<number | null>(null);
+export const StepProvider = StepCtx.Provider;
+
+const ORDINALS = [
+  "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve",
+];
+export const stepWord = (n: number): string => `Step ${ORDINALS[n - 1] ?? n}`;
 
 export function SectionHead({ eyebrow, title, children }: {
   eyebrow: string; title: string; children?: React.ReactNode;
 }) {
+  const n = useContext(StepCtx);
   return (
     <div className="sec-head">
-      <span className="eyebrow">{eyebrow}</span>
+      <span className="eyebrow">{n ? stepWord(n) : eyebrow}</span>
       <h2>{title}</h2>
       {children && <p>{children}</p>}
     </div>

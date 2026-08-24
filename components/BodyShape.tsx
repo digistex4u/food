@@ -8,7 +8,7 @@ import {
   katchMcArdle, waistCutoff,
   type BuildType, type FatPattern, type RiskBand,
 } from "@/lib/bodycomp";
-import { Tile, Note } from "./ui";
+import { SectionHead, Tile, Note } from "./ui";
 
 /** Three-segment meter for the NICE waist-to-height bands. */
 function WhtrMeter({ whtr, band }: { whtr: number; band: RiskBand }) {
@@ -54,7 +54,16 @@ export default function BodyShape({
   };
 
   return (
-    <div className="stack">
+    <section>
+      {/* Every step announces itself, or someone three screens in has no idea
+          where they are. This one had no heading while the app was tabs. */}
+      <SectionHead eyebrow="Body & fat pattern" title="Where your weight actually sits">
+        A tape measure around the navel tells this app more than the scale does. It estimates your
+        body fat and lean mass, bands your risk against the waist-to-height cutoffs, and is why
+        your protein target is set from the tissue that needs protein rather than from all of you.
+      </SectionHead>
+
+      <div className="stack">
       <div className="card card-pad">
         <div className="eyebrow" style={{ marginBottom: 6 }}>Measure, don&apos;t guess</div>
         <p className="tile-n" style={{ maxWidth: "64ch", marginBottom: 16 }}>
@@ -261,6 +270,7 @@ export default function BodyShape({
         set a starting target and to tell you which direction to move — no more than that. This is
         general nutrition information, not medical advice.
       </p>
-    </div>
+      </div>
+    </section>
   );
 }

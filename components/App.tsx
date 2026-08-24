@@ -5,35 +5,62 @@ import {
   api, jsonBody, type AppProfile, type Bootstrap, type CustomFood, type CustomRecipe,
   type RecipeLink,
 } from "@/lib/client";
-import { FOODS, type Food } from "@/lib/nutrition";
-import { Loading } from "./ui";
+import { FOODS, pathOf, type Food, type PathKey } from "@/lib/nutrition";
+import { Loading, StepProvider } from "./ui";
+import PathPick from "./PathPick";
 import Numbers from "./Numbers";
 import BodyShape from "./BodyShape";
 import Mechanics from "./Mechanics";
+import Month from "./Month";
 import Tracker from "./Tracker";
 import Weight from "./Weight";
 import Plan from "./Plan";
 import Recipes from "./Recipes";
 import FoodDb from "./FoodDb";
 
-const TABS = [
-  { id: "num",   label: "Your numbers" },
-  { id: "body",  label: "Body & fat pattern" },
-  { id: "mech",  label: "How the body works" },
-  { id: "track", label: "Daily tracker" },
-  { id: "wt",    label: "Weight & progress" },
-  { id: "plan",  label: "Bulk plan" },
-  { id: "rec",   label: "Kitchen cards" },
-  { id: "db",    label: "Food database" },
-] as const;
-type TabId = (typeof TABS)[number]["id"];
+/**
+ * The app is a wizard, not a set of tabs.
+ *
+ * One screen at a time, in the order the work actually happens: decide what
+ * this is for, measure yourself, read the numbers that follow, then the food.
+ * Which screens exist depends on the answer to the first one — a lifestyle user
+ * is never shown the daily food tracker, because they were promised they would
+ * not have to log anything.
+ *
+ * The rail across the top is not decoration. Once a step has been reached it
+ * stays clickable, so the wizard is a first pass rather than a corridor: nobody
+ * should have to press Next six times to look at the food database again.
+ */
+interface Step {
+  id: string;
+  label: string;
+  short: string;
+  /** Which paths this step belongs to. */
+  on: PathKey[];
+}
+
+const BOTH: PathKey[] = ["fitness", "lifestyle"];
+
+const STEPS: Step[] = [
+  { id: "path",  label: "What is this for",    short: "Purpose",   on: ["fitness", "lifestyle", "unset"] },
+  { id: "you",   label: "About you",           short: "You",       on: BOTH },
+  { id: "body",  label: "Body & fat pattern",  short: "Body",      on: BOTH },
+  { id: "mech",  label: "How the body works",  short: "Mechanics", on: ["fitness"] },
+  { id: "plan",  label: "Today's portions",    short: "Plan",      on: ["fitness"] },
+  { id: "month", label: "Your 30 days",        short: "30 days",   on: BOTH },
+  { id: "rec",   label: "Kitchen cards",       short: "Cards",     on: BOTH },
+  { id: "track", label: "Daily tracker",       short: "Tracker",   on: ["fitness"] },
+  { id: "wt",    label: "Weight & progress",   short: "Weight",    on: BOTH },
+  { id: "db",    label: "Food database",       short: "Foods",     on: BOTH },
+];
 
 export default function App() {
   const [boot, setBoot] = useState<Bootstrap | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [activeId, setActiveId] = useState<string>("");
-  const [tab, setTab] = useState<TabId>("num");
+  const [at, setAt] = useState(0);
+  const [seen, setSeen] = useState(0);
   const [dark, setDark] = useState(false);
   const [toast, setToast] = useState<{ msg: string; bad?: boolean } | null>(null);
 
@@ -117,7 +144,7 @@ export default function App() {
       const p = await api<AppProfile>("/api/profiles", jsonBody({ name: name.trim() || "Person" }));
       setProfiles([...profiles, p]);
       chooseProfile(p.id);
-      setTab("num");
+      setAt(0);
       say(`Added ${p.name}`);
     } catch (e) {
       say(e instanceof Error ? e.message : "Could not add that profile.", true);
@@ -138,25 +165,40 @@ export default function App() {
     }
   };
 
-  /* -------------------------------------------------- foods and recipes */
-  const customFoods = boot?.customFoods ?? [];
-  const customRecipes = boot?.customRecipes ?? [];
-  const setCustomFoods = (next: CustomFood[]) =>
-    setBoot((b) => (b ? { ...b, customFoods: next } : b));
-  const setCustomRecipes = (next: CustomRecipe[]) =>
-    setBoot((b) => (b ? { ...b, customRecipes: next } : b));
+  /* ----------------------------------------------------------- the wizard */
+  const path = me ? pathOf(me) : "unset";
 
-  const recipeLinks = boot?.recipeLinks ?? [];
-  /** Pin or unpin a cooking video, keeping the local list in step. */
-  const setRecipeLink = (next: RecipeLink | null, id: string) =>
-    setBoot((b) => {
-      if (!b) return b;
-      const rest = (b.recipeLinks ?? []).filter((l) => l.id !== id);
-      return { ...b, recipeLinks: next ? [...rest, next] : rest };
-    });
+  // Until the first question is answered there is exactly one screen, which is
+  // what stops someone landing in a tracker they never asked for.
+  const steps = useMemo(() => STEPS.filter((s) => s.on.includes(path)), [path]);
+  const step = steps[Math.min(at, steps.length - 1)];
+  const index = steps.findIndex((s) => s.id === step?.id);
 
-  /** Built-ins plus the household's own foods, as one searchable list. */
-  const allFoods: Food[] = useMemo(() => [...FOODS, ...customFoods], [customFoods]);
+  // How far this person has got before. Kept per profile and in the browser
+  // rather than the database: it decides what is clickable, not what is true.
+  const seenKey = me ? `bk.seen.${me.id}` : "";
+  useEffect(() => {
+    if (!seenKey) return;
+    const raw = Number(localStorage.getItem(seenKey) ?? 0);
+    setSeen(Number.isFinite(raw) ? raw : 0);
+    setAt(0);
+  }, [seenKey]);
+
+  useEffect(() => {
+    if (!seenKey || index < 0) return;
+    if (index > seen) {
+      setSeen(index);
+      try { localStorage.setItem(seenKey, String(index)); } catch { /* private mode */ }
+    }
+  }, [index, seen, seenKey]);
+
+  const go = useCallback((next: number) => {
+    setAt(Math.max(0, Math.min(next, steps.length - 1)));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [steps.length]);
+
+  const blocked = step?.id === "path" && path === "unset";
+  const last = index === steps.length - 1;
 
   /* -------------------------------------------------------------- render */
   if (needsSetup) {
@@ -177,7 +219,7 @@ export default function App() {
     );
   }
 
-  if (!boot || !me) {
+  if (!boot || !me || !step) {
     return (
       <div className="wrap">
         {error ? (
@@ -196,6 +238,31 @@ export default function App() {
     );
   }
 
+  /* -------------------------------------------------- foods and recipes */
+  const customFoods = boot.customFoods ?? [];
+  const customRecipes = boot.customRecipes ?? [];
+  const setCustomFoods = (next: CustomFood[]) =>
+    setBoot((b) => (b ? { ...b, customFoods: next } : b));
+  const setCustomRecipes = (next: CustomRecipe[]) =>
+    setBoot((b) => (b ? { ...b, customRecipes: next } : b));
+
+  const recipeLinks = boot.recipeLinks ?? [];
+  /** Pin or unpin a cooking video, keeping the local list in step. */
+  const setRecipeLink = (next: RecipeLink | null, id: string) =>
+    setBoot((b) => {
+      if (!b) return b;
+      const rest = (b.recipeLinks ?? []).filter((l) => l.id !== id);
+      return { ...b, recipeLinks: next ? [...rest, next] : rest };
+    });
+
+  /** Built-ins plus the household's own foods, as one searchable list. */
+  const allFoods: Food[] = [...FOODS, ...customFoods];
+
+  const choosePath = (p: PathKey) => {
+    void patchProfile({ path: p });
+    say(p === "fitness" ? "Fitness it is — let's measure you" : "Lifestyle it is — no logging, ever");
+  };
+
   return (
     <>
       <header className="topbar">
@@ -203,7 +270,9 @@ export default function App() {
           <div className="brand">
             <span className="brand-mark">BK</span>
             <span className="brand-name">Bulk Kitchen</span>
-            <span className="brand-sub">Vegetarian mass-gain, measured in grams</span>
+            <span className="brand-sub">
+              {path === "lifestyle" ? "Light Indian eating, month by month" : "Vegetarian mass-gain, measured in grams"}
+            </span>
           </div>
 
           <div className="who no-print">
@@ -253,42 +322,94 @@ export default function App() {
           </button>
         </div>
 
-        <nav className="wrap tabs no-print" role="tablist">
-          {TABS.map((t, i) => (
-            <button
-              key={t.id}
-              className="tab"
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => { setTab(t.id); window.scrollTo({ top: 0 }); }}
-            >
-              <span className="tnum">{String(i + 1).padStart(2, "0")}</span>
-              {t.label}
-            </button>
-          ))}
+        <nav className="wrap steprail no-print" aria-label="Progress">
+          {steps.map((s, i) => {
+            const done = i < index;
+            const reachable = i <= seen;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                className="srail"
+                aria-current={i === index ? "step" : undefined}
+                data-done={done ? "" : undefined}
+                disabled={!reachable}
+                title={reachable ? s.label : "Not there yet"}
+                onClick={() => go(i)}
+              >
+                <span className="sr-num">
+                  {done ? (
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" /></svg>
+                  ) : (
+                    String(i + 1).padStart(2, "0")
+                  )}
+                </span>
+                {s.short}
+              </button>
+            );
+          })}
         </nav>
       </header>
 
-      <main className="wrap">
-        {tab === "num"   && <Numbers me={me} onPatch={patchProfile} />}
-        {tab === "body"  && <BodyShape me={me} onPatch={patchProfile} />}
-        {tab === "mech"  && <Mechanics />}
-        {tab === "track" && <Tracker me={me} foods={allFoods} say={say} />}
-        {tab === "wt"    && <Weight me={me} say={say} />}
-        {tab === "plan"  && <Plan me={me} say={say} onPatch={patchProfile} />}
-        {tab === "rec"   && (
-          <Recipes
-            custom={customRecipes}
-            onChange={setCustomRecipes}
-            links={recipeLinks}
-            onLinkChange={setRecipeLink}
-            say={say}
-          />
-        )}
-        {tab === "db"    && (
-          <FoodDb custom={customFoods} onChange={setCustomFoods} say={say} />
-        )}
+      <main className="wrap wiz-main">
+        <StepProvider value={index + 1}>
+          {step.id === "path"  && <PathPick value={path} name={me.name} onChoose={choosePath} />}
+          {step.id === "you"   && <Numbers me={me} onPatch={patchProfile} />}
+          {step.id === "body"  && <BodyShape me={me} onPatch={patchProfile} />}
+          {step.id === "mech"  && <Mechanics />}
+          {step.id === "plan"  && <Plan me={me} say={say} onPatch={patchProfile} />}
+          {step.id === "month" && <Month me={me} onPatch={patchProfile} />}
+          {step.id === "track" && <Tracker me={me} foods={allFoods} say={say} />}
+          {step.id === "wt"    && <Weight me={me} say={say} />}
+          {step.id === "rec"   && (
+            <Recipes
+              custom={customRecipes}
+              onChange={setCustomRecipes}
+              links={recipeLinks}
+              onLinkChange={setRecipeLink}
+              say={say}
+            />
+          )}
+          {step.id === "db"    && (
+            <FoodDb custom={customFoods} onChange={setCustomFoods} say={say} />
+          )}
+        </StepProvider>
       </main>
+
+      <div className="wiznav no-print">
+        <div className="wrap wiznav-in">
+          <button
+            className="btn"
+            onClick={() => go(index - 1)}
+            disabled={index <= 0}
+          >
+            ← Back
+          </button>
+
+          <span className="wn-count mono">
+            {index + 1} of {steps.length}
+            <small>{step.label}</small>
+          </span>
+
+          {/* Before a path is chosen there is exactly one step, so "last step"
+              and "cannot go on yet" are the same position and have to be told
+              apart — otherwise the one screen that must not offer Next is the
+              one that offers it. */}
+          {blocked ? (
+            <button className="btn btn-primary" disabled title="Choose one of the two first">
+              Choose one to continue
+            </button>
+          ) : last ? (
+            <button className="btn btn-primary" onClick={() => go(0)}>
+              Back to the start
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={() => go(index + 1)}>
+              Next: {steps[index + 1].short} →
+            </button>
+          )}
+        </div>
+      </div>
 
       {toast && <div className={`toast${toast.bad ? " bad" : ""}`}>{toast.msg}</div>}
     </>

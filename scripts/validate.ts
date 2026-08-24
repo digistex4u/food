@@ -9,10 +9,15 @@
  */
 import { createHash } from "node:crypto";
 import {
-  FOODS, PLAN, RECIPES, ROTATION, SWAP_GROUPS, buildPlan, calc, hasFood,
-  parseYouTubeUrl, recipeMacros, youtubeSearchUrl,
+  FOODS, MONTH_DAYS, PLAN, RECIPES, ROTATION, SWAP_GROUPS, buildPlan, calc, coprimeStride,
+  dayConfig, hasFood, mealVideoUrl, parseYouTubeUrl, recipeMacros, recipesForDay,
+  youtubeSearchUrl,
   type GoalKey, type PlanConfig, type Profile, type Sex,
 } from "../lib/nutrition";
+import {
+  ADDONS, OPTIONS_PER_SLOT, POOLS, SLOTS, cleanMenuConfig, dayMenu, fitToPerson, monthMenu,
+  optionsFor, proteinFloor, strideFor,
+} from "../lib/lifestyle";
 
 let failures = 0;
 const fail = (m: string) => { failures++; console.log("  FAIL " + m); };
@@ -111,6 +116,210 @@ for (const m of PLAN) {
   }
 }
 pass(`${swapChecks} swaps applied, all portions plausible and the day still lands on target`);
+
+console.log("\n== the lifestyle calendar covers a real month ==");
+{
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const ids = new Set<string>();
+  for (const slot of SLOTS) {
+    const pool = POOLS[slot.k];
+
+    // A stride that shares a factor with the pool closes into a short cycle,
+    // and the same fortnight repeats for ever. This is the check that the
+    // comment in lifestyle.ts is telling the truth.
+    const stride = strideFor(slot.k);
+    if (gcd(stride, pool.length) !== 1)
+      fail(`${slot.k}: stride ${stride} is not coprime with a pool of ${pool.length} — the walk will repeat`);
+    if (stride < OPTIONS_PER_SLOT)
+      fail(`${slot.k}: stride ${stride} is below ${OPTIONS_PER_SLOT}, so consecutive days would share a dish`);
+    if (pool.length < MONTH_DAYS / 2)
+      fail(`${slot.k}: only ${pool.length} dishes for ${MONTH_DAYS} days`);
+
+    for (const d of pool) {
+      if (ids.has(d.id)) fail(`duplicate dish id: ${d.id}`);
+      ids.add(d.id);
+      if (!d.en || !d.hi || !d.serve || !d.serveHi || !d.why) fail(`${d.id}: a field is empty`);
+      if (!/[\u0900-\u097F]/.test(d.hi)) fail(`${d.id}: Hindi name "${d.hi}" has no Devanagari in it`);
+      if (d.k < 80 || d.k > 600) fail(`${d.id}: ${d.k} kcal is outside anything this app should suggest`);
+      // Protein has to be physically possible for the calories claimed.
+      if (d.p * 4 > d.k) fail(`${d.id}: ${d.p} g protein cannot fit in ${d.k} kcal`);
+      const u = youtubeSearchUrl(d.en, d.hi);
+      if (!u.startsWith("https://www.youtube.com/results?search_query=")) fail(`${d.id}: bad video URL`);
+    }
+  }
+  pass(`${ids.size} dishes across ${SLOTS.length} slots, every stride coprime with its pool`);
+
+  // Walk the whole month and prove the properties the UI silently relies on.
+  const start = new Date(2026, 0, 1);
+  const menu = monthMenu(start, {});
+  if (menu.length !== MONTH_DAYS) fail(`month is ${menu.length} days, wanted ${MONTH_DAYS}`);
+  let repeats = 0;
+  const lows: string[] = [];
+  for (let d = 0; d < MONTH_DAYS; d++) {
+    for (const slot of SLOTS) {
+      const opts = optionsFor(slot.k, d);
+      if (new Set(opts.map((o) => o.id)).size !== OPTIONS_PER_SLOT)
+        fail(`day ${d} ${slot.k}: the same dish appears twice in one day's options`);
+      if (d > 0) {
+        const prev = new Set(optionsFor(slot.k, d - 1).map((o) => o.id));
+        if (opts.some((o) => prev.has(o.id))) repeats++;
+      }
+    }
+    const day = menu[d];
+    if (day.k < 900 || day.k > 1900) lows.push(`day ${d + 1} is ${day.k} kcal`);
+    if (day.p < 35) lows.push(`day ${d + 1} has only ${day.p} g protein`);
+  }
+  if (repeats) fail(`${repeats} slots repeat a dish offered the day before`);
+  lows.forEach(fail);
+  const ks = menu.map((m) => m.k);
+  pass(`${MONTH_DAYS} days walked: ${Math.min(...ks)}–${Math.max(...ks)} kcal, no dish offered two days running`);
+
+  // Every dish must actually come round, or it is dead weight in the file.
+  for (const slot of SLOTS) {
+    const seen = new Set<string>();
+    for (let d = 0; d < POOLS[slot.k].length; d++)
+      for (const o of optionsFor(slot.k, d)) seen.add(o.id);
+    if (seen.size !== POOLS[slot.k].length)
+      fail(`${slot.k}: only ${seen.size} of ${POOLS[slot.k].length} dishes are ever offered`);
+  }
+  pass("every dish in every pool is reachable");
+
+  // A picked option has to survive the round trip through the sanitiser, and
+  // junk has to not.
+  const cleaned = cleanMenuConfig({
+    picks: { "0:breakfast": 2, "29:dinner": 1, "30:dinner": 1, "3:brunch": 1, "4:lunch": 9, "5:lunch": -1 },
+    start: "2026-01-01",
+  });
+  const keys = Object.keys(cleaned.picks).sort();
+  if (keys.join(",") !== "0:breakfast,29:dinner")
+    fail(`cleanMenuConfig kept the wrong picks: ${keys.join(",")}`);
+  if (cleanMenuConfig({ start: "yesterday" }).start !== "") fail("a junk start date was stored");
+  const picked = dayMenu(0, start, { "0:lunch": 2 });
+  if (picked.slots[1].chosen.id !== optionsFor("lunch", 0)[2].id) fail("a pick did not select the third option");
+  pass("out-of-range days, unknown slots and junk dates are dropped rather than stored");
+}
+
+console.log("\n== the light menu is corrected up to the person, not left short ==");
+{
+  // The menu alone is deliberately light so one calendar serves everybody. What
+  // must never happen is a real person being handed it as a whole day when it
+  // leaves them hundreds of calories down — that is a crash diet by omission.
+  const bodies: [string, number, number][] = [
+    // label, TDEE, weight
+    ["small sedentary woman", 1500, 48],
+    ["average woman", 1850, 60],
+    ["average man", 2200, 72],
+    ["large active man", 2900, 92],
+  ];
+  const menu = monthMenu(new Date(2026, 0, 1), {});
+  for (const [label, tdee, wt] of bodies) {
+    for (const day of menu) {
+      const fit = fitToPerson(day.k, day.p, tdee, wt, day.day);
+      const finalK = day.k + fit.adds.reduce((s, a) => s + a.addon.k * a.n, 0);
+      const finalP = day.p + fit.adds.reduce((s, a) => s + a.addon.p * a.n, 0);
+      if (finalK < tdee - 260)
+        fail(`${label}, day ${day.day + 1}: still ${tdee - finalK} kcal short after the additions`);
+      if (finalK > tdee + 260)
+        fail(`${label}, day ${day.day + 1}: the additions overshoot to ${finalK} against ${tdee}`);
+      // Nobody is ever told to eat below the floor that keeps muscle on.
+      if (finalP < proteinFloor(wt) - 12)
+        fail(`${label}, day ${day.day + 1}: ${finalP} g protein against a ${proteinFloor(wt)} g floor`);
+      if (fit.verdict === "short" && !fit.note.includes("lighter than you burn"))
+        fail(`${label}: a short day did not say so`);
+    }
+  }
+  pass(`${bodies.length} body types x ${menu.length} days: every day lands within 260 kcal of maintenance once corrected`);
+
+  // The corrections must vary too, or the printed week says "milk" thirty times.
+  const shapes = new Set(
+    menu.map((day) =>
+      fitToPerson(day.k, day.p, 2200, 72, day.day).adds
+        .map((a) => `${a.addon.one}x${a.n}`).sort().join("+"))
+  );
+  if (shapes.size < 4) fail(`only ${shapes.size} different sets of additions across the month`);
+  pass(`${shapes.size} different combinations of additions across ${menu.length} days`);
+
+  // A day that is already enough must not be padded.
+  const tiny = fitToPerson(1400, 60, 1450, 45);
+  if (tiny.adds.length) fail("a day that already fits was padded anyway");
+  if (tiny.verdict !== "right") fail(`a day that fits was called "${tiny.verdict}"`);
+  // And one that is too big must say so rather than adding more.
+  const big = fitToPerson(2100, 80, 1500, 50);
+  if (big.verdict !== "over" || big.adds.length) fail("an over-target day was not flagged");
+  for (const a of ADDONS) {
+    if (a.k < 30 || a.k > 300) fail(`addon ${a.one}: ${a.k} kcal is not a household serving`);
+    if (a.p * 4 > a.k) fail(`addon ${a.one}: ${a.p} g protein cannot fit in ${a.k} kcal`);
+    if (!/[\u0900-\u097F]/.test(a.hi)) fail(`addon ${a.one}: no Hindi`);
+    if (!a.many || a.many === a.one) fail(`addon ${a.one}: no plural form`);
+  }
+  pass(`${ADDONS.length} additions are real household servings; a day that fits is left alone`);
+}
+
+console.log("\n== the 30-day fitness schedule varies without drifting ==");
+{
+  const who: Profile = {
+    id: "m", name: "M", sex: "m", age: 30, ht: 174, wt: 72, act: "1.55", goal: "lean",
+    waist: 84, hip: null, pattern: "central", build: "balanced",
+  };
+  const c = calc(who);
+  let worstK = 0, worstP = 0;
+  const breakfasts: string[] = [];
+  const t0 = Date.now();
+  for (let d = 0; d < MONTH_DAYS; d++) {
+    const built = buildPlan(c.target, c.protein, c.fatG, c.carbG, dayConfig(d, { variants: {}, swaps: {} }));
+    worstK = Math.max(worstK, Math.abs(built.tot.k - c.target));
+    worstP = Math.max(worstP, Math.abs(built.tot.p - c.protein));
+    breakfasts.push(built.meals[1].name);
+    if (recipesForDay(d).length !== 3) fail(`day ${d}: wrong number of recipe cards`);
+    for (const id of recipesForDay(d))
+      if (!RECIPES.some((r) => r.id === id)) fail(`day ${d}: unknown recipe ${id}`);
+  }
+  const ms = Date.now() - t0;
+  // Thirty days must not all be the same breakfast, and must not repeat daily.
+  const distinct = new Set(breakfasts).size;
+  if (distinct < 3) fail(`only ${distinct} distinct breakfasts across the month`);
+  for (let d = 1; d < breakfasts.length; d++)
+    if (breakfasts[d] === breakfasts[d - 1]) fail(`day ${d}: same breakfast as the day before`);
+  if (worstK > 60) fail(`a day in the month missed its calorie target by ${Math.round(worstK)}`);
+  pass(`${MONTH_DAYS} days built in ${ms} ms — ${distinct} distinct breakfasts, worst miss ${Math.round(worstK)} kcal / ${Math.round(worstP)} g protein`);
+
+  // A pinned meal must stay pinned for the whole month.
+  const pinned = PLAN[1]!.tag;
+  for (let d = 0; d < MONTH_DAYS; d++)
+    if (dayConfig(d, { variants: { [pinned]: 2 }, swaps: {} }).variants?.[pinned] !== 2)
+      fail(`day ${d}: a pinned meal option was rotated away`);
+  pass("a meal you pin stays pinned on all 30 days");
+
+  // The stride helper is the load-bearing piece; check it directly.
+  for (let len = 1; len <= 8; len++)
+    for (let want = 1; want <= 10; want++) {
+      const s = coprimeStride(len, want);
+      const seen = new Set<number>();
+      for (let i = 0; i < len; i++) seen.add((i * s) % len);
+      if (seen.size !== len) fail(`coprimeStride(${len}, ${want}) = ${s} visits only ${seen.size}/${len}`);
+    }
+  pass("coprimeStride walks every option for every option count");
+
+  // The video chip must appear on cookable meals and stay off assemblies.
+  let cookable = 0, assemblies = 0;
+  for (const m of PLAN)
+    for (let i = 0; i < m.options.length; i++) {
+      const built = buildPlan(c.target, c.protein, c.fatG, c.carbG, { variants: { [m.tag]: i }, swaps: {} });
+      const meal = built.meals.find((x) => x.tag === m.tag)!;
+      const url = mealVideoUrl(meal);
+      if (url) {
+        cookable++;
+        if (!url.startsWith("https://www.youtube.com/results?search_query=")) fail(`${meal.name}: bad video URL`);
+      } else {
+        assemblies++;
+        // Anything with a cooked dish or a grain in it must have got a link.
+        if (meal.items.some((it) => it.food.cat === "dish" || it.food.cat === "grain"))
+          fail(`${meal.name}: has something to cook but offers no video`);
+      }
+    }
+  if (cookable < 15) fail(`only ${cookable} meal options offer a recipe video`);
+  pass(`${cookable} meal options link to a recipe video, ${assemblies} correctly offer none`);
+}
 
 console.log("\n== YouTube links are parsed, not trusted ==");
 const WATCH = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";

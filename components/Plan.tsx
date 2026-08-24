@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, jsonBody, patchBody, type AppProfile, type ShoppingItem } from "@/lib/client";
 import {
-  F, PLAN_RULES, PLAN_TITLE, buildPlan, calc, nut, planNote, qtyLabel, r0, r1, swapsFor,
-  type Food, type PlanConfig, type PlanItem, type PlanMeal, type Profile,
+  F, PLAN_RULES, PLAN_TITLE, buildPlan, calc, mealVideoUrl, nut, planNote, qtyLabel, r0, r1,
+  swapsFor, type Food, type PlanConfig, type PlanItem, type PlanMeal, type Profile,
 } from "@/lib/nutrition";
 import { SectionHead, Tile, Note, Loading, Empty } from "./ui";
 
@@ -262,6 +262,7 @@ function MealRow({
   // The option name is the menu as written; once an item inside it has been
   // traded, saying "Milk, nuts and dates" over a cup of coffee would be a lie.
   const adjusted = m.items.some((i) => i.swappedFrom);
+  const video = mealVideoUrl(m);
   return (
     <div className="planmeal">
       <div className="pm-time">{m.time}<small>{m.tag}</small></div>
@@ -287,6 +288,14 @@ function MealRow({
             <SwappableItem key={it.slot} it={it} onSwap={onSwap} />
           ))}
         </div>
+
+        {video && (
+          <a className="ytc no-print" href={video} target="_blank" rel="noopener noreferrer"
+             title={`Find a recipe video for ${m.name}`}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+            Recipe video
+          </a>
+        )}
       </div>
     </div>
   );
